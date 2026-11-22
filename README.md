@@ -1,18 +1,22 @@
-# 🖐️ Real-Time American Sign Language (ASL) & Hand Gesture Recognition
+# Gesture Flow AI
 
-A full-stack, deep-learning powered application for recognizing American Sign Language (ASL) gestures in real time using **MediaPipe**, **TensorFlow / TFLite**, **Flask**, and **React (Vite)**.
+An American Sign Language (ASL) fingerspelling practice app. Explore the alphabet, study recorded handshapes, and use your webcam to turn recognized signs into editable text.
 
 ---
 
 ## 🌟 Key Features
 
-- **Accounts and dashboard:** Create an account or sign in to a personalized dashboard. Neon Postgres stores accounts and sessions.
-- **Gesture guide:** Browse A–Z and Space using hand landmarks recorded in this project's dataset.
-- **Real-Time Landmark Detection:** 21 3D hand landmarks (63 spatial coordinates: X, Y, Z) extracted at low latency via MediaPipe Hands directly in the browser.
-- **Deep Learning Classification:** Fully-connected Neural Network trained on ASL gesture landmarks and quantized into lightweight TensorFlow Lite format (`.tflite`).
-- **Supports 27 Classes:** Recognizes 26 English Alphabet letters (`A`-`Z`, including `YY`) plus `SPACE`.
-- **Gesture Stabilization & Sentence Formation:** Implements a stability buffer and cooldown mechanism to assemble recognized signs into coherent words and sentences.
-- **Modular Architecture:** Decoupled training pipeline, REST API backend, and responsive React frontend.
+- **Studio and gesture guide** with illustrated handshapes and joint positions for A–Z and the app’s Space gesture. Each example shows a single frame from the model dataset.
+- **Live Practice** with a webcam preview, hand tracking overlay, detected letter, model confidence, and editable text. The gesture guide stays alongside the camera and carries over your selected letter from the studio.
+- **Light and dark modes** with a blue-and-white light theme, a saved theme preference, and controls that respect reduced-motion settings.
+- **Accounts and sessions** stored in Neon Postgres.
+
+## Using the studio
+
+1. Create an account or sign in. Choose a letter directly in the guide or use the previous and next buttons.
+2. Open **Live practice** and select **Start camera**. Grant camera permission and show one hand.
+3. Hold a static sign steady until the letter appears in the text. Trace **J** down and around with your pinky, and trace **Z** with your index finger. For **Space**, hold an open palm with the fingers pointing sideways and the thumb up. Lower your hand before repeating a gesture.
+4. Edit the generated text, select **Clear** to start again, or select **Speak** in browsers that support speech synthesis.
 
 ---
 
@@ -20,27 +24,25 @@ A full-stack, deep-learning powered application for recognizing American Sign La
 
 ```mermaid
 flowchart LR
-    A[Webcam Feed] --> B[MediaPipe Hands (Frontend)]
-    B -->|63 Normalized Coordinates| C[React App / Vite]
-    C -->|POST /predict| D[Flask REST API]
-    D --> E[TFLite Classifier]
-    E -->|Predicted Label + Confidence| D
-    D --> C
-    C --> F[Real-Time Sentence Builder & Display]
+    A["Webcam in browser"] --> B["MediaPipe Hands"]
+    B --> C["React studio"]
+    C -->|"POST /predict with hand landmarks"| D["Flask API"]
+    D --> E["TensorFlow Lite classifier"]
+    D -->|"Label and confidence"| C
+    C --> F["Editable fingerspelled text"]
+    C -->|"Account and session requests"| D
+    D --> G["Neon Postgres"]
 ```
 
 ---
 
 ## 📊 Model Overview
 
-- **Input:** 63 features (21 landmarks $\times$ 3 coordinates $[x, y, z]$ normalized relative to the wrist).
-- **Architecture:**
-  - Dense (128 units, ReLU) + Dropout (0.2)
-  - Dense (128 units, ReLU) + Dropout (0.2)
-  - Dense (27 classes, Softmax)
-- **Model Size:** Lightweight (~110 KB TFLite model, ~28k parameters).
-- **Optimization:** Adam optimizer ($\text{learning rate} = 0.001$), Sparse Categorical Crossentropy.
-- **Evaluation:** Evaluated on 1,640 held-out test samples with high classification accuracy across all 27 gestures.
+MediaPipe extracts 21 hand landmarks in the browser. Flask receives their 63 coordinates plus up to about two seconds of recent landmarks. The webcam feed stays in the browser.
+
+The TensorFlow Lite model classifies the 24 static letters and the app's **Space** gesture after centering and scaling each hand at the wrist. **J** and **Z** use rules that match the fingertip path across multiple frames.
+
+The static model classified all 2,629 held-out frames from the training sources correctly. These are splits by frame and may include the same signer in training and evaluation. In a separate check, the correct letter was the most frequent prediction in 53 of 62 video clips of static letters. The motion rules detected 9 of 10 J clips and 9 of 10 Z clips during development. Live webcam accuracy has yet to be measured.
 
 ---
 
@@ -52,7 +54,8 @@ hand_gesture_final/
 │   ├── flask_app.py         # Flask API and built frontend
 │   ├── auth.py              # Account and session routes
 │   ├── auth_schema.sql      # Neon Postgres schema
-│   ├── requirements.txt     # Python dependencies
+│   ├── requirements-web.txt # Runtime dependencies for the web app
+│   ├── requirements.txt     # Runtime and local ML tooling
 │   └── ml/
 │       ├── data/
 │       │   ├── dataset/     # Raw landmark recordings, grouped by gesture
@@ -61,12 +64,14 @@ hand_gesture_final/
 │       ├── analysis_outputs/
 │       └── *.py            # Data collection, training, and evaluation scripts
 ├── frontend/
-│   ├── src/                # React sign-in, dashboard, camera, and gesture guide
-│   ├── public/
+│   ├── src/                # Sign-in, studio, Live Practice, and gesture guide
+│   ├── public/             # Hand illustrations and site icon
 │   ├── package.json
+│   ├── vercel.json         # Production frontend and API routing
 │   └── vite.config.js      # Development server and API proxy
 ├── .env.example
 ├── Dockerfile
+├── render.yaml
 └── README.md
 ```
 
@@ -78,7 +83,7 @@ hand_gesture_final/
 - **Python 3.10 or 3.11**
 - **Node.js 22.13+ or 24.x** & npm
 - A **Neon Postgres** database
-- A functional **webcam**
+- A webcam for **Live Practice**
 
 ---
 
@@ -94,16 +99,14 @@ python -m venv venv
 # Linux/macOS:
 source venv/bin/activate
 
-# Install dependencies
-pip install -r backend/requirements.txt
+# Install the web app dependencies
+python -m pip install -r backend/requirements-web.txt
 ```
-
-> **Note:** For TensorFlow 2.15 compatibility, ensure `numpy<2` (e.g. `numpy==1.26.4`) is installed.
 
 #### Frontend (React)
 ```bash
 cd frontend
-npm install
+npm ci
 cd ..
 ```
 
@@ -127,60 +130,55 @@ You need both the Flask backend and the React frontend running concurrently:
 ```bash
 python -m backend.flask_app
 ```
-- Server starts on `http://127.0.0.1:5000`
-- Provides endpoints:
-  - `/api/auth` — Registration, sign-in, session lookup, and sign-out
-  - `POST /predict` — Receives `landmarks: [63 floats]`, returns `{ label, confidence }`
-  - `GET /get_reference?label=A` — Retrieves reference landmark skeleton
+Flask runs on `http://127.0.0.1:5000`. Vite forwards API requests to this address during development.
 
 #### Terminal 2 — Start Frontend Application:
 ```bash
 cd frontend
 npm run dev
 ```
-- Open your browser at: **`http://localhost:5173/`**
-- Create an account or sign in. Use **Start camera** to translate a sign, or open the **Gesture guide** to view examples.
+Open [http://localhost:5173/](http://localhost:5173/) and follow the studio steps above.
+
+If signup or sign-in reports that the account database is unavailable, check the backend’s `DATABASE_URL` and run `python -m flask --app backend.flask_app init-auth-db` against that database. If the camera is blocked, allow camera access in the browser and use localhost or HTTPS.
+
+### API routes
+
+| Route | Purpose |
+| --- | --- |
+| `GET /health` | Check that Flask is running |
+| `POST /api/auth/register`, `POST /api/auth/login` | Create an account or sign in |
+| `GET /api/auth/me`, `POST /api/auth/logout` | Read or end the current session |
+| `POST /predict` | Send `landmarks` with 63 numbers. Optionally send `motion` with up to 64 rows of timestamp in milliseconds followed by 63 coordinates. Scale the motion rows' Y coordinates by video height divided by width. A recognized J or Z includes `motion: true`. |
+| `GET /get_reference?label=A` | Fetch one recorded hand pose |
 
 ---
 
 ## 🧪 Training & Custom Dataset Collection
 
-Run these commands from the project root to collect data or retrain the classifier.
+Download `X_signalpha.npy`, `y_signalpha.npy`, `X_self.npy`, and `y_self.npy` from Ridhi Budhathoki's landmark extraction project into one directory. The first pair comes from SignAlphaSet. The second pair comes from webcam recordings. Training also uses this project's recorded Space landmarks. [Landmark arrays](https://github.com/ridhi9898/SignLanguageProject/tree/17a5b5e3c6186e5fa34d5edf44e193a33a9a82fb)
 
-1. **Collect Landmarks:**
-   ```bash
-   python -m backend.ml.collect_landmarks
-   ```
-   Follow the prompts to record frames into `backend/ml/data/dataset/<LABEL>/`.
+SignAlphaSet by Bindu Garg, Manisha Kasar, Achyut Kashyap, Amber Vats, Gunjan Sharma, and Aditya Hange is licensed under CC BY 4.0. This app uses normalized landmarks derived from its stills and used its videos to check J and Z recognition. [SignAlphaSet v3](https://doi.org/10.17632/8fmvr9m98w.3)
 
-2. **Merge Dataset:**
-   ```bash
-   python -m backend.ml.merge_dataset
-   ```
-   Aggregates individual gesture recordings into `backend/ml/data/asl_landmarks.csv`.
+Run these commands from the project root with Python 3.11. The last two commands regenerate the reports in `backend/ml/analysis_outputs/`.
 
-3. **Train Model:**
-   ```bash
-   python -m backend.ml.train_classifier
-   ```
-   Trains the neural network and saves updated models into `backend/ml/model/`.
+```bash
+python -m pip install -r backend/requirements.txt
+python -m backend.ml.train_classifier /path/to/landmark-arrays
+python -m backend.ml.analyze_model /path/to/landmark-arrays
+python -m backend.ml.plot_training_curve
+```
 
-4. **Evaluate Model:**
-   ```bash
-   python -m backend.ml.analyze_model
-   python -m backend.ml.plot_training_curve
-   ```
-   Writes performance tables and loss curves to `backend/ml/analysis_outputs/`.
+Use `python -m backend.ml.collect_landmarks` to capture additional landmark examples. `python -m backend.ml.merge_dataset` exports those captures into a CSV.
 
 ---
 
 ## Deployment on Vercel, Render, and Neon
 
 1. **Neon** — Select your database and role in the Neon console and copy its PostgreSQL connection string. Keep the SSL settings included in the URL. The role must be able to create the `gesture_auth` schema and its tables. [Neon connection guide](https://neon.com/docs/connect/connect-from-any-app)
-2. **Render** — Create a Blueprint from this repository using `render.yaml`. Set `DATABASE_URL` to the Neon connection string. The Blueprint uses the paid Standard instance (2 GB RAM) for TensorFlow, initializes the auth schema before each release, and checks `/health` before routing traffic. Once it is live, copy the service's HTTPS origin, such as `https://hand-gesture-api.onrender.com`. [Render Blueprint guide](https://render.com/docs/infrastructure-as-code)
+2. **Render** — Create a Blueprint from this repository using `render.yaml`. Set `DATABASE_URL` to the Neon connection string. The Blueprint selects the Standard plan, runs the auth schema initializer before deployment, and configures `/health` as the health check. Copy the service’s assigned HTTPS origin from Render. [Render Blueprint guide](https://render.com/docs/infrastructure-as-code)
 3. **Vercel** — Import the same repository and set **Root Directory** to `frontend` and **Node.js Version** to 22.x or 24.x. Set `RENDER_BACKEND_URL` to your Render service's HTTPS origin without a trailing slash in Production and in any Preview environment you plan to deploy. `frontend/vercel.json` builds the Vite frontend and proxies the auth, prediction, and gesture reference requests, so the browser uses the Vercel origin for session cookies. [Vercel configuration guide](https://vercel.com/docs/project-configuration/vercel-json)
 
-To verify the release, open `/health` on Render, then register or sign in on the Vercel site. Refresh to check that the session persists, open a gesture in the guide, and allow camera access to test prediction.
+To verify the release, open `/health` on Render. Register or sign in on the Vercel site and refresh to check that the session persists. Select a letter in the studio, open **Live practice**, and start the camera to test prediction.
 
 ## 🐳 Combined Docker Deployment
 
@@ -203,8 +201,3 @@ docker run --env-file .env -p 5000:7860 hand-gesture-recognition
 | **Machine Learning** | TensorFlow, Keras, TensorFlow Lite, NumPy, Scikit-Learn |
 | **Computer Vision** | OpenCV, MediaPipe |
 | **Containerization** | Docker |
-
----
-
-## 📄 License
-This project is open-source and available under the [MIT License](LICENSE).

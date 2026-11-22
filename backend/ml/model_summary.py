@@ -24,7 +24,7 @@ model.summary()
 from io import StringIO
 stream = StringIO()
 model.summary(print_fn=lambda s: stream.write(s + "\n"))
-summary_text = stream.getvalue()
+summary_text = "\n".join(line.rstrip() for line in stream.getvalue().splitlines()) + "\n"
 (OUT / "model_summary.txt").write_text(summary_text, encoding="utf8")
 print("Saved model_summary.txt")
 

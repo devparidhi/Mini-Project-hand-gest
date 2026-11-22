@@ -1,118 +1,60 @@
+from collections import deque
+from time import monotonic
+
 import cv2
-import numpy as np
 import mediapipe as mp
+import numpy as np
 
-from .paths import MODEL_DIR
+from .gesture_classifier import GestureClassifier
+from .motion import MOTION_WINDOW_MS, MAX_FRAME_GAP_MS
 
-# TFLite interpreter import
-try:
-    from tflite_runtime.interpreter import Interpreter
-    print("Using tflite_runtime.Interpreter")
-except Exception:
-    from tensorflow.lite.python.interpreter import Interpreter
-    print("Using tensorflow.lite.Interpreter")
 
-MODEL_PATH = MODEL_DIR / "asl_landmark_model.tflite"
-LABEL_PATH = MODEL_DIR / "label_map.npy"
+def main():
+    classifier = GestureClassifier()
+    hand_api = mp.solutions.hands
+    history = deque(maxlen=64)
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        raise SystemExit("Could not open camera")
 
-# Load labels
-LABELS = np.load(LABEL_PATH, allow_pickle=True)
+    print("Press 'q' to quit")
+    try:
+        with hand_api.Hands(max_num_hands=1, min_detection_confidence=0.6, min_tracking_confidence=0.6) as hands:
+            while True:
+                ok, frame = cap.read()
+                if not ok:
+                    break
 
-print("Labels:", LABELS)
+                frame = cv2.flip(frame, 1)
+                result = hands.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                timestamp = monotonic() * 1000
+                text = "No hand"
+                if result.multi_hand_landmarks:
+                    hand = result.multi_hand_landmarks[0]
+                    mp.solutions.drawing_utils.draw_landmarks(frame, hand, hand_api.HAND_CONNECTIONS)
+                    points = np.array([[lm.x, lm.y, lm.z] for lm in hand.landmark])
+                    raw = points.flatten()
+                    points[:, 1] *= frame.shape[0] / frame.shape[1]
+                    history.append([timestamp, *points.flat])
+                    while timestamp - history[0][0] > MOTION_WINDOW_MS + 100:
+                        history.popleft()
+                    prediction = classifier.predict(raw, np.asarray(history))
+                    label = prediction["label"]
+                    text = f"Pred: {label}"
+                    if not prediction.get("motion"):
+                        text += f" ({prediction['confidence']:.2f})"
+                elif history and timestamp - history[-1][0] > MAX_FRAME_GAP_MS:
+                    history.clear()
 
-# Load TFLite model
-interpreter = Interpreter(str(MODEL_PATH))
-interpreter.allocate_tensors()
+                cv2.rectangle(frame, (10, 10), (350, 60), (0, 0, 0), -1)
+                cv2.putText(frame, text, (20, 45), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+                cv2.imshow("ASL Landmark Live", frame)
+                if cv2.waitKey(1) & 0xFF == ord("q"):
+                    break
+    finally:
+        cap.release()
+        cv2.destroyAllWindows()
 
-input_details = interpreter.get_input_details()[0]
-output_details = interpreter.get_output_details()[0]
 
-input_index = input_details["index"]
-output_index = output_details["index"]
-
-print("Input shape:", input_details["shape"])
-print("Output shape:", output_details["shape"])
-
-# MediaPipe hands setup
-mp_hands = mp.solutions.hands
-mp_drawing = mp.solutions.drawing_utils
-
-hands = mp_hands.Hands(
-    static_image_mode=False,
-    max_num_hands=1,
-    min_detection_confidence=0.6,
-    min_tracking_confidence=0.6
-)
-
-cap = cv2.VideoCapture(0)
-if not cap.isOpened():
-    print("Could not open camera")
-    exit()
-
-print("Press 'q' to quit")
-
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        continue
-
-    frame = cv2.flip(frame, 1)
-    h, w = frame.shape[:2]
-
-    # Mediapipe wants RGB
-    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    result = hands.process(rgb)
-
-    prediction_text = "No hand"
-
-    if result.multi_hand_landmarks:
-        hand_lms = result.multi_hand_landmarks[0]
-        mp_drawing.draw_landmarks(frame, hand_lms, mp_hands.HAND_CONNECTIONS)
-
-        # 21 * (x,y,z) = 63 features
-        vec = []
-        for lm in hand_lms.landmark:
-            vec.extend([lm.x, lm.y, lm.z])
-
-        # Convert to numpy
-        inp = np.array(vec, dtype=np.float32).reshape(1, -1)
-
-        # Run TFLite
-        interpreter.set_tensor(input_index, inp)
-        interpreter.invoke()
-        probs = interpreter.get_tensor(output_index)[0]
-
-        best_idx = int(np.argmax(probs))
-        best_label = LABELS[best_idx]
-        best_conf = float(probs[best_idx])
-
-        # Top-3 debug (optional)
-        top3_idx = np.argsort(probs)[-3:][::-1]
-        debug_str = ", ".join(
-            [f"{LABELS[i]}:{probs[i]:.2f}" for i in top3_idx]
-        )
-        # print(debug_str)
-
-        prediction_text = f"{best_label} ({best_conf:.2f})"
-
-        # Draw box + text
-        cv2.rectangle(frame, (10, 10), (350, 60), (0, 0, 0), -1)
-        cv2.putText(frame, "Pred: " + prediction_text,
-                    (20, 45), cv2.FONT_HERSHEY_SIMPLEX,
-                    0.9, (0, 255, 0), 2)
-
-    else:
-        cv2.rectangle(frame, (10, 10), (250, 60), (0, 0, 0), -1)
-        cv2.putText(frame, "No hand",
-                    (20, 45), cv2.FONT_HERSHEY_SIMPLEX,
-                    0.9, (0, 0, 255), 2)
-
-    cv2.imshow("ASL Landmark Live", frame)
-
-    key = cv2.waitKey(1) & 0xFF
-    if key == ord('q'):
-        break
-
-cap.release()
-hands.close()
-cv2.destroyAllWindows()
+if __name__ == "__main__":
+    main()

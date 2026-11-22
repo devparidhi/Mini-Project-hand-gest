@@ -8,6 +8,10 @@ const HANDS_ASSETS = import.meta.glob(
   { eager: true, exhaustive: true, import: 'default', query: '?url&no-inline' },
 );
 const handsAsset = (file) => HANDS_ASSETS[HANDS_DIR + file];
+const MOTION_WINDOW_MS = 1900;
+const MAX_FRAME_GAP_MS = 220;
+const MOTION_STARTERS = { J: 'I', Z: 'D' };
+const TRACKED_JOINTS = [0, 4, 8, 12, 16, 20];
 let handsScript;
 
 function loadHands() {
@@ -53,6 +57,16 @@ function drawHand(canvas, landmarks, connections) {
   }
 }
 
+function handIsMoving(history) {
+  const latest = history.at(-1);
+  const palm = Math.hypot(latest[28] - latest[1], latest[29] - latest[2]);
+  return history.some((frame) => latest[0] - frame[0] <= 300
+    && TRACKED_JOINTS.some((joint) => {
+      const x = 1 + joint * 3;
+      return Math.hypot(latest[x] - frame[x], latest[x + 1] - frame[x + 1]) > palm * 0.24;
+    }));
+}
+
 export default function LiveTranslator() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -76,9 +90,20 @@ export default function LiveTranslator() {
     let lastLabel = '';
     let agreedFrames = 0;
     let typedLabel = '';
+    let candidateSince = 0;
+    let history = [];
+    let tracking = false;
+    let trackingSession = 0;
+    let predicting = false;
+    let lastRequest = -Infinity;
+    let lastMotion = -Infinity;
 
-    async function updatePrediction(landmarks) {
+    async function updatePrediction(landmarks, now) {
       if (!landmarks) {
+        if (tracking && now - history.at(-1)?.[0] < MAX_FRAME_GAP_MS) return;
+        if (tracking) trackingSession += 1;
+        tracking = false;
+        history = [];
         setPrediction(null);
         setCameraStatus('Show one hand to the camera.');
         lastLabel = '';
@@ -87,29 +112,65 @@ export default function LiveTranslator() {
         return;
       }
 
+      tracking = true;
+      const raw = landmarks.flatMap(({ x, y, z }) => [1 - x, y, z]);
+      const aspect = video.videoHeight / video.videoWidth;
+      history.push([now, ...raw.map((value, index) => index % 3 === 1 ? value * aspect : value)]);
+      history = history.filter(([time]) => now - time <= MOTION_WINDOW_MS).slice(-64);
+      if (predicting || now - lastRequest < 60) return;
+      predicting = true;
+      lastRequest = now;
+      const session = trackingSession;
+      const frames = history.slice();
+
       try {
         const { data } = await axios.post('/predict', {
-          landmarks: landmarks.flatMap(({ x, y, z }) => [1 - x, y, z]),
+          landmarks: raw,
+          motion: frames,
         }, { signal: controller.signal, timeout: 5000 });
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted || trackingSession !== session) return;
 
-        const { label, confidence } = data;
+        const { label, confidence, motion } = data;
         setError('');
         setCameraStatus('Hand detected');
-        setPrediction({ label: label === 'YY' ? 'Y' : label, confidence });
+        setPrediction({ label, confidence, motion });
+
+        if (motion) {
+          if (typedLabel !== label) {
+            setSentence((previous) => previous + label);
+            typedLabel = label;
+            lastMotion = now;
+          }
+          // Discard stroke frames so a later sign cannot replay the same letter.
+          history = history.filter(([time]) => time > now);
+          lastLabel = '';
+          agreedFrames = 0;
+          return;
+        }
+
+        const motionStarter = label === 'I' || label === 'D';
+        if (now - lastMotion < 350 || confidence < 0.75 || handIsMoving(frames)) {
+          lastLabel = '';
+          agreedFrames = 0;
+          return;
+        }
+        if (lastLabel !== label) candidateSince = now;
         agreedFrames = label === lastLabel ? agreedFrames + 1 : 1;
         lastLabel = label;
-        if (agreedFrames >= 3 && typedLabel !== label) {
-          const character = label === 'SPACE' ? ' ' : label === 'YY' ? 'Y' : label;
+        if (agreedFrames >= 3 && now - candidateSince >= (motionStarter ? 750 : 180)
+          && typedLabel !== label && MOTION_STARTERS[typedLabel] !== label) {
+          const character = label === 'SPACE' ? ' ' : label;
           setSentence((previous) => previous + character);
           typedLabel = label;
         }
       } catch {
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted || trackingSession !== session) return;
         setPrediction(null);
         setError('The prediction service is unavailable.');
         lastLabel = '';
         agreedFrames = 0;
+      } finally {
+        predicting = false;
       }
     }
 
@@ -158,11 +219,11 @@ export default function LiveTranslator() {
       hands.setOptions({
         maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7,
       });
-      hands.onResults(async (result) => {
+      hands.onResults((result) => {
         if (controller.signal.aborted) return;
         const landmarks = result.multiHandLandmarks?.[0];
         drawHand(canvas, landmarks, window.HAND_CONNECTIONS);
-        await updatePrediction(landmarks);
+        void updatePrediction(landmarks, performance.now());
       });
       setCameraStatus('Show one hand to the camera.');
       nextFrame();
@@ -210,18 +271,20 @@ export default function LiveTranslator() {
           <p className={cameraOn ? 'camera-status' : 'sr-only'} role="status">{cameraStatus}</p>
         </div>
         {error && <p className="error" role="alert">{error}</p>}
-        {cameraOn && <p className="muted camera-tip">Hold a sign steady to add it to your text. Lower your hand before repeating a letter.</p>}
+        {cameraOn && <p className="muted camera-tip">Hold steady for letters and Space. Trace J with your pinky and Z with your index finger. Lower your hand before repeating a letter.</p>}
       </section>
 
       <div className="side-panel">
         <section className="glass-card" aria-labelledby="prediction-heading">
           <h3 id="prediction-heading">Detected letter</h3>
           <div className="prediction">{prediction?.label === 'SPACE' ? 'Space' : prediction?.label || '—'}</div>
-          <div className="confidence-label">
-            <span className="confidence-caption">Model confidence</span>
-            <span>{prediction ? confidence + '%' : '—'}</span>
-          </div>
-          <progress aria-label="Model confidence" value={confidence} max={100} />
+          {prediction?.motion ? <p className="confidence-caption">Motion detected</p> : <>
+            <div className="confidence-label">
+              <span className="confidence-caption">Model confidence</span>
+              <span>{prediction ? confidence + '%' : '—'}</span>
+            </div>
+            <progress aria-label="Model confidence" value={confidence} max={100} />
+          </>}
         </section>
 
         <section className="glass-card translation-card" aria-labelledby="translation-heading">

@@ -3,6 +3,11 @@ import HandIllustration from './HandIllustration.jsx';
 import Icon from './Icon.jsx';
 
 const LETTERS = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'Space'];
+const GESTURE_TIPS = {
+  J: 'Point your pinky up, then draw a J down and hook upward.',
+  Z: 'Use your index finger to trace a Z in the air.',
+  Space: 'Hold your palm open with your fingers pointing sideways and your thumb up.',
+};
 
 export default function GestureGuide({ selected, onSelect }) {
   const [reference, setReference] = useState({ coordinates: null, error: false });
@@ -17,7 +22,7 @@ export default function GestureGuide({ selected, onSelect }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    const modelLabel = selected === 'Y' ? 'YY' : selected.toUpperCase();
+    const modelLabel = selected.toUpperCase();
     fetch('/get_reference?label=' + modelLabel, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error('Reference unavailable');
@@ -57,6 +62,7 @@ export default function GestureGuide({ selected, onSelect }) {
                 onClick={() => chooseSign(LETTERS[selectedIndex + 1])}><Icon name="arrow-right" /></button>
             </div>
           </div>
+          {GESTURE_TIPS[selected] && <p className="muted">{GESTURE_TIPS[selected]}</p>}
           {reference.error ? <>
             <p className="error" role="alert">This example could not be loaded.</p>
             <button onClick={() => {

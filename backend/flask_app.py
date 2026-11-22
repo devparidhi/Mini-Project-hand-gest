@@ -1,12 +1,14 @@
+import csv
 import os
 from pathlib import Path
-from threading import Lock
-from flask import Flask, request, jsonify
-from flask_cors import CORS
+
 from dotenv import load_dotenv
+from flask import Flask, jsonify, request
+from flask_cors import CORS
 import numpy as np
-import tensorflow as tf
+
 from .auth import configure_auth
+from .ml.gesture_classifier import GestureClassifier
 from .ml.paths import DATASET_DIR, MODEL_DIR
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
@@ -16,70 +18,61 @@ app = Flask(__name__, static_folder=str(PROJECT_DIR / "frontend" / "dist"), stat
 CORS(app, resources={r"/predict": {}, r"/get_reference": {}})
 configure_auth(app)
 
+classifier = GestureClassifier()
+REFERENCE_LABELS = set(classifier.labels) | {"J", "Z"}
+
+
 @app.route("/")
 def index():
     return app.send_static_file("index.html")
 
-# Load the TFLite model and allocate tensors.
-interpreter = tf.lite.Interpreter(model_path=str(MODEL_DIR / "asl_landmark_model.tflite"))
-interpreter.allocate_tensors()
-interpreter_lock = Lock()
 
-input_details = interpreter.get_input_details()
-output_details = interpreter.get_output_details()
-
-LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'SPACE', 'T', 'U', 'V', 'W', 'X', 'YY', 'Z']
-
-@app.get('/health')
+@app.get("/health")
 def health():
-    return jsonify(status='ok')
+    return jsonify(status="ok")
 
-@app.route('/predict', methods=['POST'])
+
+@app.post("/predict")
 def predict():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify(error="Invalid landmarks data"), 400
+
     try:
-        data = request.get_json(silent=True) or {}
-        landmarks = data.get('landmarks')
-        
-        if not landmarks or len(landmarks) != 63:
-            return jsonify({'error': 'Invalid landmarks data'}), 400
+        landmarks = np.asarray(data.get("landmarks"), dtype=np.float32)
+        motion = np.asarray(data["motion"], dtype=np.float64) if "motion" in data else None
+    except (TypeError, ValueError, OverflowError):
+        return jsonify(error="Invalid landmarks data"), 400
 
-        input_data = np.array(landmarks, dtype=np.float32).reshape(1, 63)
-        
-        with interpreter_lock:
-            interpreter.set_tensor(input_details[0]['index'], input_data)
-            interpreter.invoke()
-            output_data = interpreter.get_tensor(output_details[0]['index'])
-        prediction_index = np.argmax(output_data)
-        confidence = float(np.max(output_data))
-        
-        return jsonify({
-            'label': LABELS[prediction_index],
-            'confidence': confidence
-        })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    if landmarks.shape != (63,) or not np.isfinite(landmarks).all():
+        return jsonify(error="Invalid landmarks data"), 400
 
-@app.route('/get_reference', methods=['GET'])
+    if motion is not None:
+        if motion.ndim != 2 or motion.shape[1] != 64 or not 1 <= len(motion) <= 64:
+            return jsonify(error="Invalid motion history"), 400
+        if not np.isfinite(motion).all() or np.any(np.diff(motion[:, 0]) <= 0):
+            return jsonify(error="Invalid motion history"), 400
+
+    return jsonify(classifier.predict(landmarks, motion))
+
+
+@app.get("/get_reference")
 def get_reference():
-    label = request.args.get('label')
-    if not label or label not in LABELS:
-        return jsonify({'error': 'Invalid label'}), 400
-        
-    file_path = DATASET_DIR / label / "0.csv"
-    if not os.path.exists(file_path):
-        return jsonify({'error': 'Reference data not found'}), 404
-        
-    try:
-        import csv
-        with open(file_path, 'r') as f:
-            reader = csv.reader(f)
-            landmarks = next(reader)
-            # Convert strings to floats
-            landmarks = [float(x) for x in landmarks]
-        return jsonify({'landmarks': landmarks})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    label = request.args.get("label")
+    if label == "YY":
+        label = "Y"
+    if label not in REFERENCE_LABELS:
+        return jsonify(error="Invalid label"), 400
 
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    file_path = DATASET_DIR / "SPACE" / "0.csv" if label == "SPACE" else MODEL_DIR / "references" / f"{label}.csv"
+    try:
+        with file_path.open(newline="") as file:
+            landmarks = [float(value) for value in next(csv.reader(file))]
+    except FileNotFoundError:
+        return jsonify(error="Reference data not found"), 404
+    return jsonify(landmarks=landmarks)
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=False)
