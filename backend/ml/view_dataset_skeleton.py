@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 from glob import glob
 
-DATASET_DIR = "dataset"
+from .paths import DATASET_DIR
 
 # Mediapipe hand connections (hard-coded indices)
 HAND_CONNECTIONS = [

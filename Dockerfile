@@ -1,8 +1,8 @@
 # --- STAGE 1: Build Frontend ---
-FROM node:18-slim AS build-stage
+FROM node:22-slim AS build-stage
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
-RUN npm install
+RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
@@ -17,11 +17,11 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
-COPY requirements.txt .
+COPY backend/requirements.txt backend/requirements-web.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the entire project
-COPY . .
+# Copy the Flask service and its model assets
+COPY backend/ ./backend/
 
 # Copy built frontend from stage 1 to the location Flask expects
 COPY --from=build-stage /app/frontend/dist ./frontend/dist
@@ -31,4 +31,4 @@ ENV PORT=7860
 EXPOSE 7860
 
 # Run Flask on port 7860
-CMD ["python", "flask_app.py"]
+CMD ["python", "-m", "backend.flask_app"]

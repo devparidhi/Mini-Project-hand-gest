@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: hand-gesture-api
+    runtime: docker
+    plan: standard
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    preDeployCommand: python -m flask --app backend.flask_app init-auth-db
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: AUTH_COOKIE_SECURE
+        value: "1"

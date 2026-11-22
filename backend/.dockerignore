@@ -1,0 +1,11 @@
+.env
+.env.*
+**/.env
+**/.env.*
+**/__pycache__
+ml/analysis_outputs/
+ml/data/asl_landmarks.csv
+ml/data/dataset/*/*
+!ml/data/dataset/*/0.csv
+ml/model/*
+!ml/model/asl_landmark_model.tflite

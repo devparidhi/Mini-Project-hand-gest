@@ -5,12 +5,13 @@ parameter counts, optimizer settings if available.
 """
 
 import tensorflow as tf
-from pathlib import Path
 import numpy as np
 import json
 
-MODEL_PATH = Path("model/asl_landmark_model.h5")
-OUT = Path("analysis_outputs")
+from .paths import MODEL_DIR, REPORTS_DIR
+
+MODEL_PATH = MODEL_DIR / "asl_landmark_model.h5"
+OUT = REPORTS_DIR
 OUT.mkdir(exist_ok=True, parents=True)
 
 if not MODEL_PATH.exists():
@@ -61,7 +62,7 @@ if hasattr(model, "optimizer") and model.optimizer is not None:
         pass
 
 # Loss function (if compiled)
-if hasattr(model, "loss") and model.loss is not None:asw-
+if hasattr(model, "loss") and model.loss is not None:
     text += f"Loss function: {model.loss}\n"
 
 (OUT / "model_architecture.txt").write_text(summary_text + "\n\n" + text, encoding="utf8")

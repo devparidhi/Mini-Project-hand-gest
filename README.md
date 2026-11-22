@@ -6,6 +6,8 @@ A full-stack, deep-learning powered application for recognizing American Sign La
 
 ## 🌟 Key Features
 
+- **Accounts and dashboard:** Create an account or sign in to a personalized dashboard. Neon Postgres stores accounts and sessions.
+- **Gesture guide:** Browse A–Z and Space using hand landmarks recorded in this project's dataset.
 - **Real-Time Landmark Detection:** 21 3D hand landmarks (63 spatial coordinates: X, Y, Z) extracted at low latency via MediaPipe Hands directly in the browser.
 - **Deep Learning Classification:** Fully-connected Neural Network trained on ASL gesture landmarks and quantized into lightweight TensorFlow Lite format (`.tflite`).
 - **Supports 27 Classes:** Recognizes 26 English Alphabet letters (`A`-`Z`, including `YY`) plus `SPACE`.
@@ -45,30 +47,26 @@ flowchart LR
 ## 📁 Repository Structure
 
 ```
-hand-gestures-main/
-├── analysis_outputs/        # Model architecture, metrics, and training evaluation reports
-├── dataset/                 # Raw extracted landmark CSV files organized by sign letter (A-Z)
-├── frontend/                # React (Vite) single-page application
-│   ├── src/
-│   │   ├── App.jsx          # MediaPipe camera integration, stabilization & sentence builder
-│   │   ├── index.css        # UI styling
-│   │   └── main.jsx
+hand_gesture_final/
+├── backend/
+│   ├── flask_app.py         # Flask API and built frontend
+│   ├── auth.py              # Account and session routes
+│   ├── auth_schema.sql      # Neon Postgres schema
+│   ├── requirements.txt     # Python dependencies
+│   └── ml/
+│       ├── data/
+│       │   ├── dataset/     # Raw landmark recordings, grouped by gesture
+│       │   └── asl_landmarks.csv
+│       ├── model/          # Trained models, label map, and training history
+│       ├── analysis_outputs/
+│       └── *.py            # Data collection, training, and evaluation scripts
+├── frontend/
+│   ├── src/                # React sign-in, dashboard, camera, and gesture guide
+│   ├── public/
 │   ├── package.json
-│   └── vite.config.js       # Vite server and API reverse-proxy configuration
-├── model/
-│   ├── asl_landmark_model.h5       # Keras HDF5 model
-│   ├── asl_landmark_model.tflite   # Production-ready TFLite model
-│   ├── label_map.npy               # Class label mappings
-│   └── training_history.pkl        # Loss and accuracy history
-├── asl_landmarks.csv        # Consolidated landmarks dataset
-├── collect_landmarks.py     # Script to record custom gesture landmarks via webcam
-├── merge_dataset.py         # Merges per-letter CSV folders into one master CSV
-├── train_classifier.py      # Trains the MLP model and exports H5 + TFLite models
-├── analyze_model.py         # Generates classification reports, confusion metrics, and plots
-├── plot_training_curve.py   # Plots training & validation loss/accuracy curves
-├── flask_app.py             # Flask API serving predictions & reference signs
-├── requirements.txt         # Python dependencies
-├── Dockerfile               # Container deployment configuration
+│   └── vite.config.js      # Development server and API proxy
+├── .env.example
+├── Dockerfile
 └── README.md
 ```
 
@@ -77,8 +75,9 @@ hand-gestures-main/
 ## 🚀 Quick Start Guide
 
 ### Prerequisites
-- **Python 3.10+ / 3.11**
-- **Node.js 18+** & npm
+- **Python 3.10 or 3.11**
+- **Node.js 22.13+ or 24.x** & npm
+- A **Neon Postgres** database
 - A functional **webcam**
 
 ---
@@ -96,7 +95,7 @@ python -m venv venv
 source venv/bin/activate
 
 # Install dependencies
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 ```
 
 > **Note:** For TensorFlow 2.15 compatibility, ensure `numpy<2` (e.g. `numpy==1.26.4`) is installed.
@@ -110,16 +109,27 @@ cd ..
 
 ---
 
-### 2. Running the Application
+### 2. Set up account storage
+
+Copy `.env.example` to `.env` in the project root and set `DATABASE_URL` to your Neon connection string. Keep it in the Flask environment.
+
+```bash
+python -m flask --app backend.flask_app init-auth-db
+```
+
+Run this once per database. When deploying behind an HTTPS proxy, set `AUTH_COOKIE_SECURE=1` in the backend environment.
+
+### 3. Running the Application
 
 You need both the Flask backend and the React frontend running concurrently:
 
-#### Terminal 1 — Start Backend Server:
+#### Terminal 1 — Start the backend from the project root
 ```bash
-python flask_app.py
+python -m backend.flask_app
 ```
 - Server starts on `http://127.0.0.1:5000`
 - Provides endpoints:
+  - `/api/auth` — Registration, sign-in, session lookup, and sign-out
   - `POST /predict` — Receives `landmarks: [63 floats]`, returns `{ label, confidence }`
   - `GET /get_reference?label=A` — Retrieves reference landmark skeleton
 
@@ -129,48 +139,57 @@ cd frontend
 npm run dev
 ```
 - Open your browser at: **`http://localhost:5173/`**
-- Grant camera permissions when prompted. Position your hand in view to start translating signs!
+- Create an account or sign in. Use **Start camera** to translate a sign, or open the **Gesture guide** to view examples.
 
 ---
 
 ## 🧪 Training & Custom Dataset Collection
 
-If you wish to collect your own gesture data or retrain the classifier:
+Run these commands from the project root to collect data or retrain the classifier.
 
 1. **Collect Landmarks:**
    ```bash
-   python collect_landmarks.py
+   python -m backend.ml.collect_landmarks
    ```
-   Follow on-screen instructions to record frames for desired letters into `dataset/<LABEL>/`.
+   Follow the prompts to record frames into `backend/ml/data/dataset/<LABEL>/`.
 
 2. **Merge Dataset:**
    ```bash
-   python merge_dataset.py
+   python -m backend.ml.merge_dataset
    ```
-   Aggregates individual gesture recordings into `asl_landmarks.csv`.
+   Aggregates individual gesture recordings into `backend/ml/data/asl_landmarks.csv`.
 
 3. **Train Model:**
    ```bash
-   python train_classifier.py
+   python -m backend.ml.train_classifier
    ```
-   Trains the neural network, logs validation performance, and saves updated models into `model/`.
+   Trains the neural network and saves updated models into `backend/ml/model/`.
 
 4. **Evaluate Model:**
    ```bash
-   python analyze_model.py
-   python plot_training_curve.py
+   python -m backend.ml.analyze_model
+   python -m backend.ml.plot_training_curve
    ```
-   Outputs performance tables and loss curves into `analysis_outputs/`.
+   Writes performance tables and loss curves to `backend/ml/analysis_outputs/`.
 
 ---
 
-## 🐳 Docker Deployment
+## Deployment on Vercel, Render, and Neon
+
+1. **Neon** — Select your database and role in the Neon console and copy its PostgreSQL connection string. Keep the SSL settings included in the URL. The role must be able to create the `gesture_auth` schema and its tables. [Neon connection guide](https://neon.com/docs/connect/connect-from-any-app)
+2. **Render** — Create a Blueprint from this repository using `render.yaml`. Set `DATABASE_URL` to the Neon connection string. The Blueprint uses the paid Standard instance (2 GB RAM) for TensorFlow, initializes the auth schema before each release, and checks `/health` before routing traffic. Once it is live, copy the service's HTTPS origin, such as `https://hand-gesture-api.onrender.com`. [Render Blueprint guide](https://render.com/docs/infrastructure-as-code)
+3. **Vercel** — Import the same repository and set **Root Directory** to `frontend` and **Node.js Version** to 22.x or 24.x. Set `RENDER_BACKEND_URL` to the Render HTTPS origin in Production and in any Preview environment you plan to deploy. `frontend/vercel.ts` builds the Vite frontend and proxies the auth, prediction, and gesture reference requests, so the browser uses the Vercel origin for session cookies. [Vercel configuration guide](https://vercel.com/docs/project-configuration/vercel-ts)
+
+To verify the release, open `/health` on Render, then register or sign in on the Vercel site. Refresh to check that the session persists, open a gesture in the guide, and allow camera access to test prediction.
+
+## 🐳 Combined Docker Deployment
 
 To build and run the application inside a container:
 
 ```bash
 docker build -t hand-gesture-recognition .
-docker run -p 5000:5000 hand-gesture-recognition
+docker run --rm --env-file .env hand-gesture-recognition python -m flask --app backend.flask_app init-auth-db
+docker run --env-file .env -p 5000:7860 hand-gesture-recognition
 ```
 
 ---
@@ -180,7 +199,7 @@ docker run -p 5000:5000 hand-gesture-recognition
 | Component | Technology |
 |---|---|
 | **Frontend** | React 19, Vite, MediaPipe Hands JS, Axios |
-| **Backend** | Python, Flask, Flask-CORS |
+| **Backend** | Python, Flask, Flask-CORS, Neon Postgres, Psycopg |
 | **Machine Learning** | TensorFlow, Keras, TensorFlow Lite, NumPy, Scikit-Learn |
 | **Computer Vision** | OpenCV, MediaPipe |
 | **Containerization** | Docker |

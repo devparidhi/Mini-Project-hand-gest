@@ -7,8 +7,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 import tensorflow as tf
 
-DATA_FILE = "asl_landmarks.csv"
-MODEL_DIR = "model"
+from .paths import LANDMARKS_CSV, MODEL_DIR
+
+DATA_FILE = LANDMARKS_CSV
 os.makedirs(MODEL_DIR, exist_ok=True)
 
 def load_data():

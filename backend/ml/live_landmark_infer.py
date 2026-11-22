@@ -2,6 +2,8 @@ import cv2
 import numpy as np
 import mediapipe as mp
 
+from .paths import MODEL_DIR
+
 # TFLite interpreter import
 try:
     from tflite_runtime.interpreter import Interpreter
@@ -10,8 +12,8 @@ except Exception:
     from tensorflow.lite.python.interpreter import Interpreter
     print("Using tensorflow.lite.Interpreter")
 
-MODEL_PATH = "model/asl_landmark_model.tflite"
-LABEL_PATH = "model/label_map.npy"
+MODEL_PATH = MODEL_DIR / "asl_landmark_model.tflite"
+LABEL_PATH = MODEL_DIR / "label_map.npy"
 
 # Load labels
 LABELS = np.load(LABEL_PATH, allow_pickle=True)
@@ -19,7 +21,7 @@ LABELS = np.load(LABEL_PATH, allow_pickle=True)
 print("Labels:", LABELS)
 
 # Load TFLite model
-interpreter = Interpreter(MODEL_PATH)
+interpreter = Interpreter(str(MODEL_PATH))
 interpreter.allocate_tensors()
 
 input_details = interpreter.get_input_details()[0]

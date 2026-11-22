@@ -3,6 +3,8 @@ import cv2                      # pip install opencv-python   this use for image
 import csv                      # this use for save data in csv format
 import os                       # this use for file path handling and folder creation
 
+from .paths import DATASET_DIR
+
 
 
 # hand landmark model basically in this mediapipe library there are many pre trained model for hand , face and pose detection ke liye
@@ -23,7 +25,7 @@ mp_draw = mp.solutions.drawing_utils
 
 # data set  ko " dataset" ko iss folder mai save karenge 
 # or agar folder nahi hai toh create kar denge
-SAVE_DIR = "dataset" 
+SAVE_DIR = DATASET_DIR
 os.makedirs(SAVE_DIR, exist_ok=True)
 
 # only A-Z letter ke liye data collect karenge 

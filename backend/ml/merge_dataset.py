@@ -3,8 +3,9 @@
 import os
 import csv
 
-DATASET_DIR = "dataset"
-OUT_FILE = "asl_landmarks.csv"
+from .paths import DATASET_DIR, LANDMARKS_CSV
+
+OUT_FILE = LANDMARKS_CSV
 
 def main():
     rows = []

@@ -11,17 +11,18 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import itertools
-from pathlib import Path
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, classification_report
 import tensorflow as tf
 
+from .paths import LANDMARKS_CSV, MODEL_DIR, REPORTS_DIR
+
 # ============ CONFIG ============
-MODEL_PATH = Path("model/asl_landmark_model.h5")   # adjust if needed
-LABEL_NUMPY = Path("model/label_map.npy")         # optional
-LABEL_TXT = Path("model/labels.txt")              # optional
-CSV_PATH = Path("asl_landmarks.csv")              # your collected landmarks CSV
-OUTPUT_DIR = Path("analysis_outputs")
+MODEL_PATH = MODEL_DIR / "asl_landmark_model.h5"
+LABEL_NUMPY = MODEL_DIR / "label_map.npy"
+LABEL_TXT = MODEL_DIR / "labels.txt"
+CSV_PATH = LANDMARKS_CSV
+OUTPUT_DIR = REPORTS_DIR
 TEST_SIZE = 0.2
 RANDOM_STATE = 42
 TOP_K = 5

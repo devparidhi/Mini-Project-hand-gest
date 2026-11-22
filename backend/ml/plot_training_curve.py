@@ -5,16 +5,17 @@ If no history file found, optionally retrain model for a few epochs to generate 
 """
 
 import os
-from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 import json
 import pickle
 
-MODEL_H5 = Path("model/asl_landmark_model.h5")
-HISTORY_NPY = Path("model/training_history.npy")
-HISTORY_PKL = Path("model/training_history.pkl")
-OUT = Path("analysis_outputs")
+from .paths import LANDMARKS_CSV, MODEL_DIR, REPORTS_DIR
+
+MODEL_H5 = MODEL_DIR / "asl_landmark_model.h5"
+HISTORY_NPY = MODEL_DIR / "training_history.npy"
+HISTORY_PKL = MODEL_DIR / "training_history.pkl"
+OUT = REPORTS_DIR
 OUT.mkdir(exist_ok=True, parents=True)
 
 # ---- Change for quick retrain ----
@@ -29,7 +30,7 @@ def load_history():
     if HISTORY_NPY.exists():
         return np.load(HISTORY_NPY, allow_pickle=True).item()
     # try json
-    hjson = Path("model/training_history.json")
+    hjson = MODEL_DIR / "training_history.json"
     if hjson.exists():
         return json.loads(hjson.read_text(encoding="utf8"))
     return None
@@ -42,7 +43,7 @@ if hist is None and RETRAIN_IF_NO_HISTORY:
     from sklearn.model_selection import train_test_split
     import tensorflow as tf
 
-    CSV_PATH = Path("asl_landmarks.csv")
+    CSV_PATH = LANDMARKS_CSV
     if not CSV_PATH.exists():
         raise FileNotFoundError("No training history and dataset not found to retrain.")
     df = pd.read_csv(CSV_PATH)
