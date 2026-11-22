@@ -1,0 +1,24 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "installCommand": "npm ci",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "routes": [
+    {
+      "src": "^/api/auth/(.*)$",
+      "dest": "$RENDER_BACKEND_URL/api/auth/$1",
+      "env": ["RENDER_BACKEND_URL"]
+    },
+    {
+      "src": "^/predict$",
+      "dest": "$RENDER_BACKEND_URL/predict",
+      "env": ["RENDER_BACKEND_URL"]
+    },
+    {
+      "src": "^/get_reference$",
+      "dest": "$RENDER_BACKEND_URL/get_reference",
+      "env": ["RENDER_BACKEND_URL"]
+    }
+  ]
+}
