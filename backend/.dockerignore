@@ -9,3 +9,5 @@ ml/data/dataset/*/*
 !ml/data/dataset/*/0.csv
 ml/model/*
 !ml/model/asl_landmark_model.tflite
+!ml/model/label_map.npy
+!ml/model/references/
