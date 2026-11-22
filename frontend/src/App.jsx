@@ -1,5 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import Dashboard from './Dashboard.jsx';
+import FingerspellingHero from './FingerspellingHero.jsx';
+import StudioHeader from './StudioHeader.jsx';
+
+const THEME_KEY = 'gesture-flow-theme';
+
+function readTheme() {
+  try {
+    return localStorage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light';
+  } catch {
+    return 'light';
+  }
+}
 
 async function authRequest(action, fields, signal) {
   const response = await fetch('/api/auth/' + action, {
@@ -39,11 +51,9 @@ function AccountForm({ onSuccess }) {
   }
 
   return (
-    <main className="account-page">
-      <section className="glass-card account-card" aria-labelledby="account-heading">
-        <p className="brand">Gesture Flow <span>AI</span></p>
-        <h1 id="account-heading">{registering ? 'Create your account' : 'Welcome back'}</h1>
-        <p className="muted">Sign in to practice ASL fingerspelling and translate gestures with your camera.</p>
+      <section className="account-card" aria-labelledby="account-heading">
+        <h2 id="account-heading">{registering ? 'Create your account' : 'Welcome back'}</h2>
+        <p className="muted">{registering ? 'Create an account to start practicing.' : 'Sign in to open your practice studio.'}</p>
         <form onSubmit={submit} aria-busy={pending}>
           <fieldset disabled={pending}>
             {registering && (
@@ -80,7 +90,6 @@ function AccountForm({ onSuccess }) {
           </button>
         </div>
       </section>
-    </main>
   );
 }
 
@@ -89,6 +98,25 @@ export default function App() {
   const [error, setError] = useState('');
   const [checking, setChecking] = useState(0);
   const [signingOut, setSigningOut] = useState(false);
+  const [theme, setTheme] = useState(readTheme);
+  const [livePractice, setLivePractice] = useState(() => window.location.hash === '#live-practice');
+
+  useLayoutEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    try {
+      localStorage.setItem(THEME_KEY, theme);
+    } catch {
+      // The toggle still works when browser storage is blocked.
+    }
+  }, [theme]);
+
+  useEffect(() => {
+    function updateScreen() {
+      setLivePractice(window.location.hash === '#live-practice');
+    }
+    window.addEventListener('hashchange', updateScreen);
+    return () => window.removeEventListener('hashchange', updateScreen);
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -103,6 +131,7 @@ export default function App() {
     setError('');
     try {
       await authRequest('logout', {});
+      if (window.location.hash) window.location.hash = '';
       setUser(null);
     } catch (error) {
       setError(error.message);
@@ -111,21 +140,29 @@ export default function App() {
     }
   }
 
-  if (user === undefined) {
-    return (
-      <main className="account-page">
-        <section className="glass-card account-card">
-          <h1 className="brand">Gesture Flow <span>AI</span></h1>
-          {error ? <>
-            <p className="error" role="alert">{error}</p>
-            <button onClick={() => { setError(''); setChecking(checking + 1); }}>Try again</button>
-          </> : <p role="status">Checking your session…</p>}
-        </section>
-      </main>
-    );
-  }
-
-  return user
-    ? <Dashboard user={user} onSignOut={signOut} signingOut={signingOut} accountError={error} />
-    : <AccountForm onSuccess={setUser} />;
+  return (
+    <>
+      <a className="skip-link" href="#main-content" onClick={(event) => {
+        event.preventDefault();
+        document.getElementById('main-content')?.focus();
+      }}>Skip to content</a>
+      <StudioHeader theme={theme} onThemeToggle={() => setTheme((current) => current === 'light' ? 'dark' : 'light')}
+        user={user} livePractice={livePractice} onSignOut={signOut} signingOut={signingOut} />
+      {user ? <Dashboard accountError={error} livePractice={livePractice} /> : (
+        <main id="main-content" className="account-page" tabIndex={-1}>
+          <FingerspellingHero />
+          <div className="account-form-panel watermark">
+            {user === undefined ? (
+              <section className="account-card" aria-label="Account status">
+                {error ? <>
+                  <p className="error" role="alert">{error}</p>
+                  <button type="button" onClick={() => { setError(''); setChecking(checking + 1); }}>Try again</button>
+                </> : <p className="muted" role="status">Checking your session…</p>}
+              </section>
+            ) : <AccountForm onSuccess={setUser} />}
+          </div>
+        </main>
+      )}
+    </>
+  );
 }

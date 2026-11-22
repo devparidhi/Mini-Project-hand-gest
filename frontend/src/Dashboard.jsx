@@ -1,27 +1,32 @@
+import { useState } from 'react';
 import GestureGuide from './GestureGuide.jsx';
 import LiveTranslator from './LiveTranslator.jsx';
+import FingerspellingHero from './FingerspellingHero.jsx';
+import Icon from './Icon.jsx';
 
-export default function Dashboard({ user, onSignOut, signingOut, accountError }) {
+export default function Dashboard({ accountError, livePractice }) {
+  const [selected, setSelected] = useState('A');
+
   return (
-    <div className="dashboard">
-      <header className="site-header">
-        <p className="brand">Gesture Flow <span>AI</span></p>
-        <button type="button" disabled={signingOut} onClick={onSignOut}>
-          {signingOut ? 'Signing out…' : 'Sign out'}
-        </button>
-      </header>
-      <main>
-        {accountError && <p className="error" role="alert">{accountError}</p>}
-        <div className="welcome">
-          <div>
-            <h1>Hello, {user.name}!</h1>
-            <p className="muted">Practice fingerspelling and turn your hand signs into text.</p>
+    <main id="main-content" className={livePractice ? 'dashboard live-practice' : 'dashboard'} tabIndex={-1}>
+      {accountError && <p className="error" role="alert">{accountError}</p>}
+      {livePractice ? (
+        <>
+          <div className="practice-heading" id="live-practice">
+            <h1>Live practice</h1>
+            <a className="motion-link back-link" href="#dashboard"><Icon name="arrow-left" /> Back to studio</a>
           </div>
-          <a href="#camera-heading">Go to live camera ↓</a>
+          <div className="practice-layout">
+            <LiveTranslator />
+            <GestureGuide selected={selected} onSelect={setSelected} />
+          </div>
+        </>
+      ) : (
+        <div id="dashboard" className="studio-overview">
+          <FingerspellingHero practice />
+          <GestureGuide selected={selected} onSelect={setSelected} />
         </div>
-        <GestureGuide />
-        <LiveTranslator />
-      </main>
-    </div>
+      )}
+    </main>
   );
 }

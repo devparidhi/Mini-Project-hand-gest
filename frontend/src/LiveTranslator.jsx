@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
+import Icon from './Icon.jsx';
 
 const HANDS_DIR = '/node_modules/@mediapipe/hands/';
 const HANDS_ASSETS = import.meta.glob(
@@ -191,44 +192,56 @@ export default function LiveTranslator() {
     <div className="layout-grid">
       <section className="glass-card camera-card" aria-labelledby="camera-heading">
         <div className="panel-header">
-          <h2 id="camera-heading">Live camera</h2>
-          <button type="button" className={cameraOn ? '' : 'primary'} onClick={toggleCamera}>
+          <h3 id="camera-heading">Live camera</h3>
+          <button type="button" className={cameraOn ? 'camera-toggle' : 'primary camera-toggle'} onClick={toggleCamera}>
+            <Icon name={cameraOn ? 'camera-off' : 'camera'} />
             {cameraOn ? 'Stop camera' : 'Start camera'}
           </button>
         </div>
         <div className="video-wrapper">
           <video ref={videoRef} className="webcam-view" autoPlay playsInline muted aria-label="Webcam preview" />
           <canvas ref={canvasRef} className="webcam-canvas" aria-hidden="true" />
-          {!cameraOn && <p className="camera-placeholder">Start your camera to translate a gesture.</p>}
+          {!cameraOn && <div className="camera-placeholder watermark">
+            <span className="camera-symbol" aria-hidden="true">
+              <Icon name="camera" />
+            </span>
+            <p>Start your camera to try a letter.</p>
+          </div>}
+          <p className={cameraOn ? 'camera-status' : 'sr-only'} role="status">{cameraStatus}</p>
         </div>
-        <p className="muted camera-status" role="status">{cameraStatus}</p>
         {error && <p className="error" role="alert">{error}</p>}
-        <p className="muted">Hold a sign steady to add it to your text. Lower your hand before repeating a letter.</p>
+        {cameraOn && <p className="muted camera-tip">Hold a sign steady to add it to your text. Lower your hand before repeating a letter.</p>}
       </section>
 
       <div className="side-panel">
         <section className="glass-card" aria-labelledby="prediction-heading">
-          <h2 id="prediction-heading">Detected letter</h2>
+          <h3 id="prediction-heading">Detected letter</h3>
           <div className="prediction">{prediction?.label === 'SPACE' ? 'Space' : prediction?.label || '—'}</div>
           <div className="confidence-label">
-            <span>Model confidence</span>
+            <span className="confidence-caption">Model confidence</span>
             <span>{prediction ? confidence + '%' : '—'}</span>
           </div>
           <progress aria-label="Model confidence" value={confidence} max={100} />
         </section>
 
-        <section className="glass-card" aria-labelledby="translation-heading">
-          <h2 id="translation-heading">Translated text</h2>
+        <section className="glass-card translation-card" aria-labelledby="translation-heading">
+          <h3 id="translation-heading">Translated text</h3>
           <label className="sr-only" htmlFor="translation">Edit translated text</label>
           <textarea id="translation" value={sentence} onChange={(event) => setSentence(event.target.value)}
-            placeholder="Your letters appear here" rows="3" />
+            placeholder="Your letters appear here" rows="2" />
           <div className="button-group">
-            <button type="button" disabled={!sentence} onClick={() => setSentence('')}>Clear</button>
+            <button type="button" disabled={!sentence} onClick={() => setSentence('')}>
+              <span className="translation-action-label">Clear</span>
+              <Icon name="trash" />
+            </button>
             {window.speechSynthesis && (
               <button type="button" disabled={!sentence.trim()} onClick={() => {
                 window.speechSynthesis.cancel();
                 window.speechSynthesis.speak(new SpeechSynthesisUtterance(sentence));
-              }}>Speak</button>
+              }}>
+                <span className="translation-action-label">Speak</span>
+                <Icon name="volume" />
+              </button>
             )}
           </div>
         </section>

@@ -57,7 +57,7 @@ function drawLandmarks(ctx, points) {
   }
 
   ctx.lineCap = 'round';
-  ctx.strokeStyle = '#63e6c1';
+  ctx.strokeStyle = '#6d8cee';
   ctx.lineWidth = 4;
   ctx.stroke(paths);
 
@@ -66,8 +66,10 @@ function drawLandmarks(ctx, points) {
     dots.moveTo(x + 3.5, y);
     dots.arc(x, y, 3.5, 0, 2 * Math.PI);
   }
-  ctx.fillStyle = '#e6fff8';
+  ctx.fillStyle = '#dce7ff';
   ctx.fill(dots);
+  ctx.lineWidth = 1.5;
+  ctx.stroke(dots);
 }
 
 function projectLandmarks(coordinates) {
@@ -116,10 +118,10 @@ function drawHand(ctx, points) {
   palm.quadraticCurveTo(wrist.x, wrist.y, wristEnd.x, wristEnd.y);
   palm.closePath();
 
-  const outline = '#8d543a';
+  const outline = '#162f79';
   const palmColor = ctx.createLinearGradient(wrist.x, wrist.y, middleKnuckle.x, middleKnuckle.y);
-  palmColor.addColorStop(0, '#cb8b64');
-  palmColor.addColorStop(1, '#efbb91');
+  palmColor.addColorStop(0, '#91adeb');
+  palmColor.addColorStop(1, '#dce8ff');
   ctx.lineJoin = 'round';
   ctx.strokeStyle = outline;
   ctx.lineWidth = length * 0.29;
@@ -140,9 +142,9 @@ function drawHand(ctx, points) {
   for (const { joints, radii } of fingers) {
     const [root, , , tip] = joints;
     const skin = ctx.createLinearGradient(root.x, root.y, tip.x, tip.y);
-    skin.addColorStop(0, '#d2926d');
-    skin.addColorStop(0.55, '#efb386');
-    skin.addColorStop(1, '#ffd0a6');
+    skin.addColorStop(0, '#9ab5ef');
+    skin.addColorStop(0.55, '#dce8ff');
+    skin.addColorStop(1, '#fff');
     ctx.fillStyle = outline;
     ctx.fill(fingerShape(joints, radii, length * 0.022));
     ctx.fillStyle = skin;

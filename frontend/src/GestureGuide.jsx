@@ -1,12 +1,19 @@
 import { useEffect, useState } from 'react';
 import HandIllustration from './HandIllustration.jsx';
+import Icon from './Icon.jsx';
 
 const LETTERS = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'Space'];
 
-export default function GestureGuide() {
-  const [selected, setSelected] = useState('A');
+export default function GestureGuide({ selected, onSelect }) {
   const [reference, setReference] = useState({ coordinates: null, error: false });
   const [requestCount, setRequestCount] = useState(0);
+  const selectedIndex = LETTERS.indexOf(selected);
+
+  function chooseSign(letter) {
+    if (selected === letter) return;
+    setReference({ coordinates: null, error: false });
+    onSelect(letter);
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -27,21 +34,29 @@ export default function GestureGuide() {
   }, [selected, requestCount]);
 
   return (
-    <section id="gesture-guide" className="glass-card guide-card" aria-labelledby="guide-heading">
-      <h2 id="guide-heading">Gesture guide</h2>
-      <p className="muted">Choose a letter or Space to see its hand pose and joint positions.</p>
+    <section id="gesture-guide" className="glass-card guide-card watermark" aria-labelledby="guide-heading">
       <div className="guide-layout">
-        <div role="group" aria-label="Choose a sign" className="letter-grid">
-          {LETTERS.map((letter) => (
-            <button key={letter} type="button" aria-pressed={selected === letter} onClick={() => {
-              if (selected === letter) return;
-              setReference({ coordinates: null, error: false });
-              setSelected(letter);
-            }}>{letter}</button>
-          ))}
+        <div className="guide-controls">
+          <h2 id="guide-heading">Explore the alphabet</h2>
+          <p className="muted">Choose a letter to study its handshape.</p>
+          <div role="group" aria-label="Choose a sign" className="letter-grid">
+            {LETTERS.map((letter) => (
+              <button key={letter} type="button" aria-pressed={selected === letter}
+                onClick={() => chooseSign(letter)}>{letter}</button>
+            ))}
+          </div>
+          <p className="muted guide-note">Single-frame examples from the model dataset.</p>
         </div>
         <div className="reference-preview">
-          <h3>{selected === 'Space' ? 'Space' : 'Letter ' + selected}</h3>
+          <div className="reference-heading">
+            <h3 aria-live="polite">{selected === 'Space' ? 'Space gesture' : 'Letter ' + selected}</h3>
+            <div className="reference-nav">
+              <button type="button" aria-label="Previous sign" disabled={selectedIndex === 0}
+                onClick={() => chooseSign(LETTERS[selectedIndex - 1])}><Icon name="arrow-left" /></button>
+              <button type="button" aria-label="Next sign" disabled={selectedIndex === LETTERS.length - 1}
+                onClick={() => chooseSign(LETTERS[selectedIndex + 1])}><Icon name="arrow-right" /></button>
+            </div>
+          </div>
           {reference.error ? <>
             <p className="error" role="alert">This example could not be loaded.</p>
             <button onClick={() => {
@@ -55,14 +70,13 @@ export default function GestureGuide() {
                 <HandIllustration coordinates={reference.coordinates} label={selected} />
               </figure>
               <figure>
-                <figcaption>Stick figure</figcaption>
+                <figcaption>Joint positions</figcaption>
                 <HandIllustration coordinates={reference.coordinates} label={selected} landmarksOnly />
               </figure>
             </div>
           ) : <p role="status">Loading example…</p>}
         </div>
       </div>
-      <p className="muted guide-note">Illustrations show one frame from each gesture recorded for this model.</p>
     </section>
   );
 }

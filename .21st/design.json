@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "project": {
+    "name": "hand_gesture_final",
+    "productType": null,
+    "stack": []
+  },
+  "sources": {
+    "tokens": [],
+    "components": [],
+    "assets": [],
+    "instructions": []
+  },
+  "design": {
+    "colorMode": "unknown",
+    "colors": {},
+    "typography": {},
+    "spacing": {},
+    "radius": {},
+    "shadows": {},
+    "motion": {},
+    "density": "unknown"
+  },
+  "components": {
+    "installed": [],
+    "preferredPrimitives": [],
+    "patterns": []
+  },
+  "constraints": {
+    "must": [],
+    "avoid": []
+  },
+  "decisions": [
+    {
+      "id": "studio-layout",
+      "decision": "Use translucent hand artwork as a background accent. Fit account forms and the studio overview in one viewport at ordinary screen sizes. Give live camera practice its own screen with the same alphabet guide.",
+      "source": "User direction"
+    }
+  ],
+  "evidence": [],
+  "generatedAt": "2026-11-22T09:55:37.293Z"
+}
