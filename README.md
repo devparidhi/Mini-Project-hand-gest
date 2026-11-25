@@ -90,23 +90,23 @@ hand_gesture_final/
 ### 1. Installation
 
 #### Backend (Python)
-From the project root directory:
-```bash
-# Optional: create and activate virtual environment
+From your terminal root (`Mini-Proj-hand-gest`):
+```powershell
+cd hand_gesture
+
+# Create and activate virtual environment
 python -m venv venv
-# Windows:
 .\venv\Scripts\activate
-# Linux/macOS:
-source venv/bin/activate
 
 # Install the web app dependencies
-python -m pip install -r backend/requirements-web.txt
+pip install -r backend/requirements-web.txt
 ```
 
 #### Frontend (React)
-```bash
+From `hand_gesture`:
+```powershell
 cd frontend
-npm ci
+npm install
 cd ..
 ```
 
@@ -114,30 +114,35 @@ cd ..
 
 ### 2. Set up account storage
 
-Copy `.env.example` to `.env` in the project root and set `DATABASE_URL` to your Neon connection string. Keep it in the Flask environment.
+Copy `.env.example` to `.env` in the `hand_gesture` directory and set `DATABASE_URL` to your Neon connection string. Keep it in the Flask environment.
 
-```bash
+```powershell
 python -m flask --app backend.flask_app init-auth-db
 ```
 
 Run this once per database. When deploying behind an HTTPS proxy, set `AUTH_COOKIE_SECURE=1` in the backend environment.
 
+---
+
 ### 3. Running the Application
 
-You need both the Flask backend and the React frontend running concurrently:
+You need both the Flask backend and the React frontend running concurrently.
 
-#### Terminal 1 — Start the backend from the project root
-```bash
-python -m backend.flask_app
+Open two PowerShell windows at your main folder (`Mini-Proj-hand-gest`):
+
+#### Terminal 1 — Start Backend Server (Flask)
+```powershell
+cd hand_gesture
+.\venv\Scripts\python.exe -m backend.flask_app
 ```
-Flask runs on `http://127.0.0.1:5000`. Vite forwards API requests to this address during development.
+> Flask API starts on: **http://127.0.0.1:5000**
 
-#### Terminal 2 — Start Frontend Application:
-```bash
-cd frontend
+#### Terminal 2 — Start Frontend Server (Vite / React)
+```powershell
+cd hand_gesture\frontend
 npm run dev
 ```
-Open [http://localhost:5173/](http://localhost:5173/) and follow the studio steps above.
+> Frontend application opens on: **http://localhost:5173/**
 
 If signup or sign-in reports that the account database is unavailable, check the backend’s `DATABASE_URL` and run `python -m flask --app backend.flask_app init-auth-db` against that database. If the camera is blocked, allow camera access in the browser and use localhost or HTTPS.
 
